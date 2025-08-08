@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.14.2/.schema/devbox.schema.json",
+  "packages": [
+    "kind@0.27.0",
+    "kubectl@1.33.0",
+    "kubernetes-helm@3.17.3",
+    "nushell@0.104.0",
+    "kubectl-tree@0.4.3",
+    "git@2.48.1",
+    "go-task@3.43.3",
+    "bat@0.25.0",
+    "fluxcd@2.5.1",
+    "uv@0.7.6",
+    "bootdev-cli@1.19.2",
+    "k9s@0.50.6",
+    "minikube@1.36.0",
+    "gh@2.76.1",
+    "pandoc@3.6",
+    "go@1.24.5",
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'Welcome to the Boot.dev k8s class!'",
+      "bat README.md",
+      "alias stgoland='goland .'"
+    ],
+    "scripts": {
+      "kind-ct": ["task cluster-create-kind"],
+      "kind-rm": ["task cluster-delete-kind"],
+    },
+  },
+}
