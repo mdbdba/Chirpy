@@ -17,12 +17,13 @@
     "gh@2.76.1",
     "pandoc@3.6",
     "go@1.24.5",
+    "httpie@3.2.4",
   ],
   "shell": {
     "init_hook": [
       "echo 'Welcome to the Boot.dev k8s class!'",
       "bat README.md",
-      "alias stgoland='goland .'"
+      "alias stgoland='goland .'",
     ],
     "scripts": {
       "kind-ct": ["task cluster-create-kind"],
