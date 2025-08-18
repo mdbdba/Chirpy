@@ -8,3 +8,6 @@ select * from chirps order by created_at asc;
 
 -- name: GetChirpById :one
 select * from chirps where id = $1;
+
+-- name: DeleteChirp :exec
+delete from chirps where id = $1 and user_id = $2;

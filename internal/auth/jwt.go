@@ -24,11 +24,11 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 	return tokenString, nil
 }
 
-func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
+func ValidateJWT(tokenString, serverJWTSecret string) (uuid.UUID, error) {
 	var userClaims jwt.RegisteredClaims
 
 	token, err := jwt.ParseWithClaims(tokenString, &userClaims, func(token *jwt.Token) (interface{}, error) {
-		return []byte(tokenSecret), nil
+		return []byte(serverJWTSecret), nil
 	})
 	if err != nil {
 		return uuid.UUID{}, err

@@ -6,10 +6,16 @@ VALUES (
 RETURNING *;
 
 -- name: GetUserById :one
-Select id from users where email = $1;
+Select * from users where id = $1;
 
 -- name: GetUserByEmail :one
 Select * from users where email = $1;
 
 -- name: DeleteUsers :exec
 DELETE FROM users;
+
+-- name: UpdateUserById :one
+Update users set email = $2, hashed_password = $3,
+                 updated_at = now()
+where id = $1
+returning *;
