@@ -18,10 +18,11 @@ import (
 )
 
 type user struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt string    `json:"created_at"`
-	UpdatedAt string    `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID          uuid.UUID `json:"id"`
+	CreatedAt   string    `json:"created_at"`
+	UpdatedAt   string    `json:"updated_at"`
+	Email       string    `json:"email"`
+	IsChirpyRed bool      `json:"is_chirpy_red"`
 }
 
 type chirp struct {
@@ -39,6 +40,7 @@ type userResponse struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func main() {
@@ -47,6 +49,7 @@ func main() {
 	db, err := sql.Open("postgres", dbURL)
 	platform := os.Getenv("PLATFORM")
 	svrToken := os.Getenv("SVR_SECRET")
+	polkaKey := os.Getenv("POLKA_KEY")
 
 	ServeMux := http.NewServeMux()
 	Server := http.Server{
@@ -54,7 +57,11 @@ func main() {
 		Handler: ServeMux,
 	}
 	fs := http.FileServer(http.Dir("."))
-	cfg := &apiConfig{dbQueries: database.New(db), platform: platform, svrToken: svrToken}
+	cfg := &apiConfig{
+		dbQueries: database.New(db),
+		platform:  platform,
+		svrToken:  svrToken,
+		apiToken:  polkaKey}
 	ServeMux.Handle("/app/", cfg.middlewareMetricsInc(http.StripPrefix("/app", fs)))
 	ServeMux.HandleFunc("GET /admin/metrics", cfg.handlerMetrics)
 	ServeMux.HandleFunc("GET /api/healthz", handleHealthz)
@@ -68,10 +75,54 @@ func main() {
 	ServeMux.HandleFunc("POST /api/login", cfg.handleLogin)
 	ServeMux.HandleFunc("POST /api/refresh", cfg.handleRefresh)
 	ServeMux.HandleFunc("POST /api/revoke", cfg.handleRevoke)
+	ServeMux.HandleFunc("POST /api/polka/webhooks", cfg.handlePolka)
 	err = Server.ListenAndServe()
 	if err != nil {
 		return
 	}
+}
+
+func (cfg *apiConfig) handlePolka(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string            `json:"event"`
+		Data  map[string]string `json:"data"`
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if r.Body == nil {
+		respondWithError(w, http.StatusBadRequest, "No body")
+	}
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Something went wrong")
+		return
+	}
+	if params.Event != "user.upgraded" {
+		respondWithError(w, http.StatusNoContent, "Event not supported")
+		return
+	}
+	parsedUserId, err := uuid.Parse(params.Data["user_id"])
+	if err != nil {
+		return
+	}
+	requestApiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+	if requestApiKey != cfg.apiToken {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+	_, err = cfg.dbQueries.UpgradeUserById(r.Context(), parsedUserId)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	respondWithJSON(w, http.StatusNoContent, "User upgraded")
+
 }
 
 func (cfg *apiConfig) handleChirpDelete(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +229,7 @@ func (cfg *apiConfig) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 		Email:        updatedUser.Email,
 		Token:        "",
 		RefreshToken: "",
+		IsChirpyRed:  updatedUser.IsChirpyRed,
 	}
 	respondWithJSON(w, http.StatusOK, userResponse)
 }
@@ -300,6 +352,7 @@ func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email:        user.Email,
 		Token:        jwt,
 		RefreshToken: refresh.Token,
+		IsChirpyRed:  user.IsChirpyRed,
 	}
 	respondWithJSON(w, http.StatusOK, response)
 
@@ -503,8 +556,10 @@ func (cfg *apiConfig) handleUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	respondWithJSON(w, http.StatusCreated,
 		user{ID: createUser.ID, CreatedAt: createUser.CreatedAt.String(),
-			UpdatedAt: createUser.UpdatedAt.String(),
-			Email:     createUser.Email})
+			UpdatedAt:   createUser.UpdatedAt.String(),
+			Email:       createUser.Email,
+			IsChirpyRed: createUser.IsChirpyRed,
+		})
 }
 
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
@@ -526,6 +581,7 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 	platform       string
 	svrToken       string
+	apiToken       string
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {

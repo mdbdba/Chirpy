@@ -62,3 +62,18 @@ func GetBearerToken(headers http.Header) (string, error) {
 	}
 	return authArray[1], nil
 }
+
+func GetAPIKey(headers http.Header) (string, error) {
+	apiToken := headers.Get("Authorization")
+	if apiToken == "" {
+		return "", errors.New("no api key found")
+	}
+	authArray := strings.Split(apiToken, " ")
+	if len(authArray) != 2 {
+		return "", errors.New("invalid api token format: incorrect number of spaces")
+	}
+	if authArray[0] != "ApiKey" {
+		return "", errors.New("invalid api token format: missing ApiKey prefix")
+	}
+	return authArray[1], nil
+}
